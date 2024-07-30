@@ -6,10 +6,82 @@ import numpy as np
 
 MATCH_SCORE=3
 GAP_COST=2
+import javalang
+from anytree import Node, RenderTree
+from anytree.search import findall_by_attr
+from anytree.walker import Walker
 
+# List the functions we want to have in our parsing
+function_string_list = ["public", "int", "=", "+", "-", "*", "/", "//", "&&", "||", "==", ">=", "<=", "<", ">",
+                       "return", "true", "false", "else", "String", "!=", "+=", "-=", "*=", "/=",
+                       "length", "substring", "indexOf", "startsWith", "endsWith", "StringBuilder", "contains",
+                       "append", "for", "++", "chatAt", "equals", "toLowerCase", "lastIndexOf", ":",
+                       "int[]", "new", "[]"]
+
+# This code takes a node of parsed Java into token
+def get_token(node):
+    token = ''
+    if isinstance(node, str):
+        if not node.isnumeric() and (node not in function_string_list):
+            token = "node"
+        else:
+            token = node
+    elif isinstance(node, set):
+        token = 'Modifier'  # node.pop()
+    elif isinstance(node, javalang.ast.Node):
+        token = node.__class__.__name__
+
+    return token
+
+# This code expands the java tree into
+def get_children(root):
+    if isinstance(root, javalang.ast.Node):
+        children = root.children
+    elif isinstance(root, set):
+        children = list(root)
+    else:
+        children = []
+
+    def expand(nested_list):
+        for item in nested_list:
+            if isinstance(item, list):
+                for sub_item in expand(item):
+                    yield sub_item
+            elif item:
+                yield item
+
+    return list(expand(children))
+
+# Recursively build "anytree" structure with the node.
+def get_trees(current_node, parent_node, order):
+
+    token, children = get_token(current_node), get_children(current_node)
+    node = Node([order,token], parent=parent_node, order=order)
+
+    for child_order in range(len(children)):
+        get_trees(children[child_order], node, order+str(int(child_order)+1))
+
+# Java parser of program
+def program_parser(func):
+    tokens = javalang.tokenizer.tokenize(func)
+    parser = javalang.parser.Parser(tokens)
+    tree = parser.parse_member_declaration()
+    return tree
+
+def parse_java(raw_code):
+    java_code = program_parser(raw_code)
+    # Initialize head node of the code.
+    head = Node(["1",get_token(java_code)])
+    # Recursively construct AST tree.
+    for child_order in range(len(get_children(java_code))):
+        get_trees(get_children(java_code)[child_order], head, "1"+str(int(child_order)+1))
+    return head
+
+
+#### OLD CODE
 def compute_tf(ast_tree, all_nodes):
     """Compute term frequency for an AST given a list of all node types."""
-    nodes = [type(node).__name__ for node in ast.walk(ast_tree)]
+    nodes = [type(node).__name__ for node in ast.walk(ast_tree)] # TODO UPDATE SYNTAX HERE
     node_count = Counter(nodes)
     total_nodes = sum(node_count.values())
     # Return a list of term frequencies in the same order as all_nodes
@@ -20,7 +92,7 @@ def compute_df(ast_trees):
     """Compute document frequency for all nodes given a group of ASTs."""
     df_counter = Counter()
     for ast_tree in ast_trees:
-        nodes = set(type(node).__name__ for node in ast.walk(ast_tree))
+        nodes = set(type(node).__name__ for node in ast.walk(ast_tree)) # TODO UPDATE SYNTAX HERE
         df_counter.update(nodes)
     return df_counter
 
@@ -52,7 +124,7 @@ def compute_tfidf_ood(new_tree, all_nodes, existing_idf):
 def euclidean_distance(vec1, vec2):
     return np.linalg.norm(vec1 - vec2)
 
-def dfs_traversal(tree):
+def dfs_traversal(tree): ### TODO UPDATE FOR ANYTREE
     """Perform a DFS traversal on an AST and return a list of node types."""
     nodes = []
     def visit(node):
@@ -62,11 +134,11 @@ def dfs_traversal(tree):
     visit(tree)
     return nodes
 
-def set_of_children(node, **kwargs):
+def set_of_children(node, **kwargs): # TODO UPDATE FOR ANYTREE
     """Helper function for getting all the nodes in a subtree"""
     return set((type(node).__name__, )).union(set().union(*[set_of_children(child) for child in ast.iter_child_nodes(node)]))
 
-def tree_edit_distance_with_operations(node1, node2):
+def tree_edit_distance_with_operations(node1, node2): # TODO ADAPT TO ANYTREE
     # Base cases
     if not node1 and not node2:
         return set()
