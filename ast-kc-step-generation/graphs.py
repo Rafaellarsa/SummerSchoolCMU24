@@ -7,7 +7,7 @@ import numpy as np
 MATCH_SCORE=3
 GAP_COST=2
 import javalang
-from anytree import Node, RenderTree
+from anytree import Node, RenderTree, PreOrderIter
 from anytree.search import findall_by_attr
 from anytree.walker import Walker
 
@@ -81,7 +81,8 @@ def parse_java(raw_code):
 #### OLD CODE
 def compute_tf(ast_tree, all_nodes):
     """Compute term frequency for an AST given a list of all node types."""
-    nodes = [type(node).__name__ for node in ast.walk(ast_tree)] # TODO UPDATE SYNTAX HERE
+    # nodes = [type(node).__name__ for node in ast.walk(ast_tree)]
+    nodes = [node.name[1] for node in PreOrderIter(ast_tree)]
     node_count = Counter(nodes)
     total_nodes = sum(node_count.values())
     # Return a list of term frequencies in the same order as all_nodes
@@ -92,7 +93,7 @@ def compute_df(ast_trees):
     """Compute document frequency for all nodes given a group of ASTs."""
     df_counter = Counter()
     for ast_tree in ast_trees:
-        nodes = set(type(node).__name__ for node in ast.walk(ast_tree)) # TODO UPDATE SYNTAX HERE
+        nodes = [node.name[1] for node in PreOrderIter(ast_tree)]
         df_counter.update(nodes)
     return df_counter
 
@@ -124,36 +125,79 @@ def compute_tfidf_ood(new_tree, all_nodes, existing_idf):
 def euclidean_distance(vec1, vec2):
     return np.linalg.norm(vec1 - vec2)
 
-def dfs_traversal(tree): ### TODO UPDATE FOR ANYTREE
-    """Perform a DFS traversal on an AST and return a list of node types."""
+# def dfs_traversal(tree):
+#     """Perform a DFS traversal on an AST and return a list of node types."""
+#     nodes = []
+#     def visit(node):
+#         nodes.append(type(node).__name__)
+#         for child in ast.iter_child_nodes(node):
+#             visit(child)
+#     visit(tree)
+#     return nodes
+def dfs_traversal(tree):
+    """Perform a DFS traversal on an anytree tree and return a list of node types."""
     nodes = []
     def visit(node):
-        nodes.append(type(node).__name__)
-        for child in ast.iter_child_nodes(node):
+        nodes.append(node.name[1])
+        for child in node.children:
             visit(child)
     visit(tree)
     return nodes
 
-def set_of_children(node, **kwargs): # TODO UPDATE FOR ANYTREE
+# def set_of_children(node, **kwargs): 
+#     """Helper function for getting all the nodes in a subtree"""
+#     return set((type(node).__name__, )).union(set().union(*[set_of_children(child) for child in ast.iter_child_nodes(node)]))
+def set_of_children(node):
     """Helper function for getting all the nodes in a subtree"""
-    return set((type(node).__name__, )).union(set().union(*[set_of_children(child) for child in ast.iter_child_nodes(node)]))
+    return set((node.name[1], )).union(set().union(*[set_of_children(child) for child in node.children]))
 
-def tree_edit_distance_with_operations(node1, node2): # TODO ADAPT TO ANYTREE
+# def tree_edit_distance_with_operations(node1, node2): 
+#     # Base cases
+#     if not node1 and not node2:
+#         return set()
+#     if not node1:
+#         return set_of_children(node2, annotate_fields=False)
+#     if not node2:
+#         return set_of_children(node1, annotate_fields=False)
+
+#     # Check if nodes are of same type
+#     if type(node1) != type(node2):
+#         return set_of_children(node2, annotate_fields=False).union(tree_edit_distance_with_operations(node1, None)) # delete faulty subtree, insert correct one
+
+#     else:
+#         children1 = list(ast.iter_child_nodes(node1))
+#         children2 = list(ast.iter_child_nodes(node2))
+
+#         # Get the cost and operations for matching children of both nodes
+#         operations = set()
+#         for c1, c2 in zip(children1, children2):
+#             ops = tree_edit_distance_with_operations(c1, c2)
+#             operations = operations.union(ops)
+
+#         # Extra children in either of the trees
+#         for extra_child in children1[len(children2):]:
+#             ops = tree_edit_distance_with_operations(extra_child, None)
+#             operations = operations.union(ops)
+#         for extra_child in children2[len(children1):]:
+#             ops = tree_edit_distance_with_operations(None, extra_child)
+#             operations = operations.union(ops)
+
+#         return operations
+def tree_edit_distance_with_operations(node1, node2):
     # Base cases
     if not node1 and not node2:
         return set()
     if not node1:
-        return set_of_children(node2, annotate_fields=False)
+        return set_of_children(node2)
     if not node2:
-        return set_of_children(node1, annotate_fields=False)
+        return set_of_children(node1)
 
     # Check if nodes are of same type
-    if type(node1) != type(node2):
-        return set_of_children(node2, annotate_fields=False).union(tree_edit_distance_with_operations(node1, None)) # delete faulty subtree, insert correct one
-
+    if node1.name[1] != node2.name[1]:
+        return set_of_children(node2).union(tree_edit_distance_with_operations(node1, None))  # delete faulty subtree, insert correct one
     else:
-        children1 = list(ast.iter_child_nodes(node1))
-        children2 = list(ast.iter_child_nodes(node2))
+        children1 = list(node1.children)
+        children2 = list(node2.children)
 
         # Get the cost and operations for matching children of both nodes
         operations = set()
@@ -171,6 +215,7 @@ def tree_edit_distance_with_operations(node1, node2): # TODO ADAPT TO ANYTREE
 
         return operations
 
+
 def print_ast(node, indent=0):
     """
     Recursively print an AST node.
@@ -181,7 +226,7 @@ def print_ast(node, indent=0):
     elif isinstance(node, ast.Name):
         print('  ' * indent + f'Name(id={node.id})')
     else:
-        print('  ' * indent + str(type(node).__name__))
+        print('  ' * indent + str(node.name[1]))
 
     # For each field (like 'body' for functions, 'value' for assignments, etc.)
     for field in node._fields:
