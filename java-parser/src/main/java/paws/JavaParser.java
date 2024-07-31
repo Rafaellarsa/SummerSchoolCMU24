@@ -13,6 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONTokener;
 import org.json.JSONObject;
 import org.json.JSONException;
+import java.io.FileWriter;
 
 public class JavaParser {
 
@@ -101,7 +102,12 @@ public class JavaParser {
       if(isJson){
         JSONExport j = (JSONExport)export;
         String s = j.exportJSON();
-        System.out.println(s);
+        // System.out.println(s);
+      
+        FileWriter file = new FileWriter("output.json");
+        file.write(s);
+        file.close();
+
       }
     } catch (FileNotFoundException e) {
       e.printStackTrace();
