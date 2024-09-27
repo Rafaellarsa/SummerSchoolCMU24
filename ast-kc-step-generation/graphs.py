@@ -3,6 +3,8 @@ import ast
 import math
 from collections import Counter, defaultdict
 import numpy as np
+from owlready2 import *
+from anytree import Node, RenderTree
 
 MATCH_SCORE=3
 GAP_COST=2
@@ -68,7 +70,8 @@ def program_parser(func):
     tree = parser.parse_member_declaration()
     return tree
 
-def parse_java(raw_code):
+
+def parse_java_ast(raw_code):
     java_code = program_parser(raw_code)
     # Initialize head node of the code.
     head = Node(["1",get_token(java_code)])
@@ -77,6 +80,44 @@ def parse_java(raw_code):
         get_trees(get_children(java_code)[child_order], head, "1"+str(int(child_order)+1))
     return head
 
+
+def parse_anthology(leaf_nodes):
+    # Load the ontology
+    onto = get_ontology("java.owl").load()
+
+    # Define the leaf nodes
+    leaf_nodes = leaf_nodes.split('|')
+    leaf_nodes_uris = [onto.search_one(iri=f"*#{node}") for node in leaf_nodes]
+
+    # Create a dictionary to store the nodes
+    node_dict = {}
+
+    # Function to build the tree
+    def build_tree(node, node_dict):
+        if (0, node.name) not in node_dict:
+            node_dict[(0, node.name)] = Node([0, node.name])
+        
+        for parent in node.is_a:
+    #        if isinstance(parent, Thing):
+                if (0, parent.name) not in node_dict:
+                    node_dict[(0, parent.name)] = Node([0, parent.name])
+                node_dict[(0, node.name)].parent = node_dict[(0, parent.name)]
+                build_tree(parent, node_dict)
+
+    # Build the tree for each leaf node
+    for leaf in leaf_nodes_uris:
+        if leaf is not None:
+            build_tree(leaf, node_dict)
+
+    # Find the root of the tree (if there are multiple roots, this is just an example of one of them)
+    try:
+        root = [node for node in node_dict.values() if node.is_root][0]
+    except:
+        root = Node([0, ""])
+
+    return root
+
+parse_java = parse_anthology
 
 #### OLD CODE
 def compute_tf(ast_tree, all_nodes):
@@ -185,11 +226,12 @@ def set_of_children(node):
 #         return operations
 def tree_edit_distance_with_operations(node1, node2):
     # Base cases
-    if not node1 and not node2:
+    # Print the tree
+    if (not node1 and not node2) or (node1 is not None and node2 is not None and node1.name[1] == '' and node2.name[1] == ''):
         return set()
-    if not node1:
+    if not node1 or (node1 is not None and node1.name[1] == ''):
         return set_of_children(node2)
-    if not node2:
+    if not node2 or (node2 is not None and node2.name[1] == ''):
         return set_of_children(node1)
 
     # Check if nodes are of same type
@@ -220,20 +262,23 @@ def print_ast(node, indent=0):
     """
     Recursively print an AST node.
     """
-    # Print the node type and any additional information (e.g., its name if it's a function or variable)
-    if isinstance(node, ast.FunctionDef):
-        print('  ' * indent + f'FunctionDef(name={node.name})')
-    elif isinstance(node, ast.Name):
-        print('  ' * indent + f'Name(id={node.id})')
-    else:
-        print('  ' * indent + str(node.name[1]))
+    for pre, fill, node in RenderTree(node):
+        print(f"{pre}{node.name}")
+    
+    # # Print the node type and any additional information (e.g., its name if it's a function or variable)
+    # if isinstance(node, ast.FunctionDef):
+    #     print('  ' * indent + f'FunctionDef(name={node.name})')
+    # elif isinstance(node, ast.Name):
+    #     print('  ' * indent + f'Name(id={node.id})')
+    # else:
+    #     print('  ' * indent + str(node.name[1]))
 
-    # For each field (like 'body' for functions, 'value' for assignments, etc.)
-    for field in node._fields:
-        value = getattr(node, field, None)
-        if isinstance(value, list):
-            for item in value:
-                print_ast(item, indent+1)
-        elif isinstance(value, ast.AST):
-            print_ast(value, indent+1)
+    # # For each field (like 'body' for functions, 'value' for assignments, etc.)
+    # for field in node._fields:
+    #     value = getattr(node, field, None)
+    #     if isinstance(value, list):
+    #         for item in value:
+    #             print_ast(item, indent+1)
+    #     elif isinstance(value, ast.AST):
+    #         print_ast(value, indent+1)
 
