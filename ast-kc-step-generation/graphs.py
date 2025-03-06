@@ -81,7 +81,7 @@ def parse_java_ast(raw_code):
     return head
 
 
-def parse_anthology(leaf_nodes):
+def parse_ontology(leaf_nodes):
     # Load the ontology
     onto = get_ontology("java.owl").load()
 
@@ -117,9 +117,11 @@ def parse_anthology(leaf_nodes):
 
     return root
 
-parse_java = parse_anthology
+#### Replace this for ontology vs AST
+parse_java = parse_ontology # parse_java_ast
 
-#### OLD CODE
+
+#### Code from prior work - helper functions
 def compute_tf(ast_tree, all_nodes):
     """Compute term frequency for an AST given a list of all node types."""
     # nodes = [type(node).__name__ for node in ast.walk(ast_tree)]
